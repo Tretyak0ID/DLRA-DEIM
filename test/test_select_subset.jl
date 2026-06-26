@@ -2,7 +2,7 @@ using Test
 using Random
 using LinearAlgebra
 
-include("../DLRA/selector.jl")
+include("../DLRA/select_subset.jl")
 
 # Build a random m×n matrix with orthonormal rows
 function random_orthonormal_rows(m, n; seed=42)
