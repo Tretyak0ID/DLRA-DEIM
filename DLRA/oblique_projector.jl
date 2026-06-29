@@ -1,7 +1,13 @@
+module ObliqueProjectors
+
 using LinearAlgebra
 using Random
 
-include(joinpath(@__DIR__, "select_subset.jl"))
+# Depends on the SelectSubset module (select_subset). Loaded by the DLRA entry
+# file (DLRA/DLRA.jl) in dependency order; do not include it here.
+using ..SelectSubset
+
+export ObliqueProjector, getrows, getcols
 
 """
     ObliqueProjector{T}
@@ -76,3 +82,5 @@ function Base.:*(A, P::ObliqueProjector)
     APS = getcols(A, P.S)   # (rows of A)×k
     return (P.QR \ APS')'   # (P_S U)†^T (P_S A^T)^T — (rows of A)×m
 end
+
+end # module ObliqueProjectors

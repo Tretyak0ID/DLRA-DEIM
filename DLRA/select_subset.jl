@@ -1,3 +1,10 @@
+module SelectSubset
+
+using LinearAlgebra
+using Random
+
+export select_subset
+
 """
     select_subset(X, k, rng=Random.default_rng())
 
@@ -83,3 +90,5 @@ function arp_algorithm(X::AbstractMatrix{T},
 
     return indices
 end
+
+end # module SelectSubset
