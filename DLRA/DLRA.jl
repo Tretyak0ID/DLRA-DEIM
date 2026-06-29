@@ -20,6 +20,7 @@
 include(joinpath(@__DIR__, "low_rank.jl"))           # module LowRank
 include(joinpath(@__DIR__, "select_subset.jl"))      # module SelectSubset
 include(joinpath(@__DIR__, "oblique_projector.jl"))  # module ObliqueProjectors
+include(joinpath(@__DIR__, "ksl_matrix_solver.jl"))  # module KSLMatrixSolver
 
 # NOTE: Riemann.jl / riemann_ops.jl are QTT-tensor code with undefined
 # dependencies (CoreCell, MatrixCell, a `reorth` returning `.cores`) and

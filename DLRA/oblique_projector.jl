@@ -55,8 +55,9 @@ end
 Extract rows indexed by `S` from `A`. Specialise for custom matrix types
 (e.g. TTtensor) by adding a method.
 """
-getrows(A::AbstractMatrix, S::Vector{Int}) = A[S, :]
-getcols(A::AbstractMatrix, S::Vector{Int}) = A[:, S]
+getrows(A::AbstractMatrix, I::Vector{Int}) = A[I, :]
+getcols(A::AbstractMatrix, J::Vector{Int}) = A[:, J]
+getblock(A::AbstractMatrix, I::Vector{Int}, J::Vector{Int}) = A[I, J]
 
 
 # ── multiplication ────────────────────────────────────────────────────────────
