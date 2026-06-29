@@ -121,7 +121,9 @@ function _l_step(U1::Matrix{T}, S̃1::Matrix{T}, V0::Matrix{T},
     L0   = V0 * S̃1'                         # n2×r
 
     F_L = (L, t) -> begin
-        G′  = update_state(G, f, LRMat(U1, L', V0))
+        # current field is Y_f = U1 * L'  =  U1 * I_r * L', factored U=U1, S=I, V=L
+        Ir  = Matrix{T}(LinearAlgebra.I, size(L,2), size(L,2))
+        G′  = update_state(G, f, LRMat(U1, Ir, L))
         GI  = getrows(G′, f, I, t)          # k_L×n2: rows I of G_f(U1*L', t)
         Matrix((U1If \ GI)')                # n2×r: G_f(I,:)^T * (U1[I,:])^{-T}
     end
