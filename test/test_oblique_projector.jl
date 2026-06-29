@@ -2,7 +2,8 @@ using Test
 using Random
 using LinearAlgebra
 
-include("../DLRA/oblique_projector.jl")
+include("../DLRA/DLRA.jl")
+using .ObliqueProjectors
 
 function random_orthonormal_cols(n, m; seed=42)
     Q, _ = qr(randn(MersenneTwister(seed), n, m))

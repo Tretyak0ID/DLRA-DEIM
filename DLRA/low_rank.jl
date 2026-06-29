@@ -31,6 +31,8 @@ struct LRMat{T<:AbstractFloat}
 end
 
 Base.size(A::LRMat) = (size(A.U, 1), size(A.V, 1))
+Base.size(A::LRMat, d::Integer) = d == 1 ? size(A.U, 1) :
+                                  d == 2 ? size(A.V, 1) : 1
 rank(A::LRMat)      = size(A.S, 1)
 
 dense(A::LRMat) = A.U * A.S * A.V'

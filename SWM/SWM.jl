@@ -20,6 +20,6 @@ include(joinpath(@__DIR__, "..", "DLRA", "DLRA.jl"))
 # SWM modules. lr_diff_ops and initial_conditions both use `..LowRank`.
 include(joinpath(@__DIR__, "lr_diff_ops.jl"))
 include(joinpath(@__DIR__, "initial_conditions.jl"))
+include(joinpath(@__DIR__, "swe_rhs.jl"))
 
-# NOTE: swe_rhs.jl is currently empty; neuro_swm.jl is a standalone QTT
-# script (no module). Add them here once they are ready.
+# NOTE: neuro_swm.jl is a standalone QTT script (no module).

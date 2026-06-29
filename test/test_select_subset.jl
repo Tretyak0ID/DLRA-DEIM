@@ -2,7 +2,8 @@ using Test
 using Random
 using LinearAlgebra
 
-include("../DLRA/select_subset.jl")
+include("../DLRA/DLRA.jl")
+using .SelectSubset
 
 # Build a random m×n matrix with orthonormal rows
 function random_orthonormal_rows(m, n; seed=42)

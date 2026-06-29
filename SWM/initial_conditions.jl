@@ -25,7 +25,7 @@ function get_lr_gaussian_hill(N::Int, L::Real, dx::Real;
     u = LowRank.zero_lr(N, N)
     v = LowRank.zero_lr(N, N)
 
-    return h, u, v
+    return u, v, h
 end
 
 end
