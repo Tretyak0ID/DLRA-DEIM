@@ -50,6 +50,14 @@ function arp_algorithm(X::AbstractMatrix{T},
                        rng::AbstractRNG) where {T<:AbstractFloat}
     m, n = size(X)
 
+    # Non-finite input (NaN/Inf) means the simulation upstream has blown up.
+    # Every acceptance test would then be `rand() < NaN` == false, so the
+    # rejection loop would grind through all `max_tries` iterations on every
+    # call. Bail immediately with a clear error instead.
+    all(isfinite, X) ||
+        throw(ArgumentError("arp_algorithm: input contains non-finite values " *
+                            "(NaN/Inf). The upstream low-rank state has diverged."))
+
     # Q = X (rows already orthonormal, no LQ needed)
     Q = copy(X)   # m×n; we permute columns in-place alongside indices
 
@@ -58,11 +66,18 @@ function arp_algorithm(X::AbstractMatrix{T},
     # Growing orthonormal basis for the selected subspace (m×m pre-allocated)
     B = Matrix{T}(undef, m, m)
 
+    # Cap the rejection sampling: if acceptance probabilities collapse (which
+    # happens when the basis is rank-deficient), fall back to the deterministic
+    # max-residual pivot instead of looping forever.
+    max_tries = 100 * n
+
     for t in 1:m
-        # Sample until acceptance
-        j = t  # will be overwritten
+        # Sample until acceptance (bounded)
+        j = t
         accepted = false
+        tries = 0
         while !accepted
+            tries += 1
             j = rand(rng, t:n)
 
             # Residual: project Q[:,j] onto complement of span(B[:,1:t-1])
@@ -74,6 +89,23 @@ function arp_algorithm(X::AbstractMatrix{T},
             # Accept with probability ||q_ort||^2  (≤ 1 since rows of X are orthonormal)
             p = sum(abs2, q_ort)
             accepted = rand(rng) < p
+
+            if !accepted && tries >= max_tries
+                # Deterministic fallback: pick the remaining column with the
+                # largest residual norm (the most informative pivot).
+                jbest, pbest = t, -one(T)
+                for jj in t:n
+                    qj = Q[:, jj]
+                    for i in 1:t-1
+                        qj -= dot(B[:, i], qj) * B[:, i]
+                    end
+                    pj = sum(abs2, qj)
+                    pj > pbest && (pbest = pj; jbest = jj)
+                end
+                j = jbest
+                @warn "arp_algorithm: rejection sampling exceeded $max_tries tries at step $t (max residual²=$(round(pbest, sigdigits=3))); using deterministic max-volume pivot. Basis is likely rank-deficient." maxlog=5
+                accepted = true
+            end
         end
 
         # Recompute orthogonal component cleanly for the accepted column
@@ -81,7 +113,12 @@ function arp_algorithm(X::AbstractMatrix{T},
         for i in 1:t-1
             q_ort -= dot(B[:, i], q_ort) * B[:, i]
         end
-        B[:, t] = q_ort / norm(q_ort)
+        nq = norm(q_ort)
+        if nq <= eps(T) * sqrt(T(m))
+            @warn "arp_algorithm: selected direction is (near) linearly dependent at step $t (‖q⊥‖=$(round(nq, sigdigits=3))); the basis is rank-deficient." maxlog=5
+            nq = max(nq, eps(T))   # avoid division by zero
+        end
+        B[:, t] = q_ort / nq
 
         # Swap accepted column into position t
         indices[t], indices[j] = indices[j], indices[t]

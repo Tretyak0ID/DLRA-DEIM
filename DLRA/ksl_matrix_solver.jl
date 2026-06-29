@@ -4,7 +4,7 @@ using LinearAlgebra
 using ..LowRank
 using ..ObliqueProjectors
 
-export Euler, RK4, LieTrotter, Strang, ksl_step
+export Euler, RK4, LieTrotter, Strang, ksl_step, euler_step
 export getrows, getcols, getblock, update_state
 
 # ── RHS interface ─────────────────────────────────────────────────────────────
@@ -224,6 +224,79 @@ function ksl_step(Ys::AbstractVector{<:LRMat}, G, t::Real, dt::Real,
     out = Vector{eltype(Ys)}(undef, F)
     for f in 1:F
         out[f] = _step_field(outer, Ys[f], G, f, t, dt, inner, kKs[f], kLs[f])
+    end
+    return out
+end
+
+# ── Simple Euler + truncate solver (DEIM-projected RHS) ──────────────────────
+#
+# A first-order reference integrator that, unlike KSL, does NOT split into
+# K/S/L substeps. It forms the oblique DEIM projection of the RHS,
+#
+#   Ĝ_f = P_U G_f + G_f P_V − P_U G_f P_V        (interpolatory, rank ≤ 2k)
+#
+# (P_U projects onto range(U_f) via the row index set I, P_V onto range(V_f)
+# via the column index set J), then takes a plain Euler step and truncates back
+# to the field's rank:
+#
+#   Y_f ← truncate( Y_f + dt · Ĝ_f , rank r_f )
+#
+# Useful as a cross-check on the KSL integrator's fields.
+
+# Adapter presenting a field-f view of G with the 2-arg getrows/getcols that the
+# ObliqueProjector expects (forwarding to the 4-arg field-indexed RHS interface).
+struct _FieldView{G_T}
+    G :: G_T
+    f :: Int
+    t :: Float64
+end
+ObliqueProjectors.getrows(v::_FieldView, I::Vector{Int}) = getrows(v.G, v.f, I, v.t)
+ObliqueProjectors.getcols(v::_FieldView, J::Vector{Int}) = getcols(v.G, v.f, J, v.t)
+
+# Adapter for a plain dense matrix (needed for the P_U G P_V cross term).
+struct _DenseView{T}
+    A :: Matrix{T}
+end
+ObliqueProjectors.getrows(v::_DenseView, I::Vector{Int}) = v.A[I, :]
+ObliqueProjectors.getcols(v::_DenseView, J::Vector{Int}) = v.A[:, J]
+
+# Oblique DEIM projection of field f's RHS at state Y, returned dense (n1×n2).
+function _oblique_rhs(G, f::Int, Y::LRMat, t::Real, k::Int)
+    fv  = _FieldView(G, f, Float64(t))
+    P_U = ObliqueProjector(Y.U, k)          # rows I
+    P_V = ObliqueProjector(Y.V, k)          # cols J
+    PUG = Y.U * (P_U * fv)                   # P_U G    (n1×n2)
+    GPV = (fv * P_V) * Y.V'                  # G P_V    (n1×n2)
+    PUGPV = Y.U * (P_U * _DenseView(GPV))    # P_U (G P_V)  (n1×n2)
+    return PUG + GPV - PUGPV
+end
+
+"""
+    euler_step(Ys, G, t, dt, k; ranks=rank.(Ys)) -> Vector{LRMat}
+
+Advance the field vector `Ys` by one Euler step using the oblique DEIM
+projection of the RHS, truncating each field back to its rank.
+
+- `G`    : RHS object (same interface as `ksl_step`): `getrows(G,f,I,t)`,
+           `getcols(G,f,J,t)`.
+- `k`    : DEIM index-set size (scalar or per-field vector, ≥ rank).
+- `ranks`: truncation rank per field (defaults to the current ranks, so rank
+           is preserved across the step).
+
+This is a plain first-order reference scheme — less accurate and less stable
+than `ksl_step`, intended for cross-checking the evolving fields.
+"""
+function euler_step(Ys::AbstractVector{<:LRMat}, G, t::Real, dt::Real,
+                    k::Union{Int,AbstractVector{Int}};
+                    ranks::AbstractVector{Int}=[LowRank.rank(Y) for Y in Ys])
+    F  = length(Ys)
+    ks = k isa Int ? fill(k, F) : k
+
+    out = Vector{eltype(Ys)}(undef, F)
+    for f in 1:F
+        Ghat = _oblique_rhs(G, f, Ys[f], t, ks[f])     # dense n1×n2
+        stepped = dense(Ys[f]) + dt * Ghat             # Euler update (dense)
+        out[f] = from_dense(stepped; maxrank=ranks[f]) # truncate back to rank
     end
     return out
 end
